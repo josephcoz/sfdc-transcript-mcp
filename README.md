@@ -1,61 +1,28 @@
 # sfdc-transcript-mcp
 
-A local **MCP server** that turns a meeting transcript into **human-confirmed Salesforce Opportunity updates**. The host (Claude Desktop / Claude Code / Cowork) provides the model; this server exposes tools and never calls an LLM itself — so it needs **no Anthropic API key**.
+Turn a sales call transcript into Salesforce Opportunity updates — proposed by an AI, approved by you. It runs on your computer through Claude (Desktop / Cowork / Code).
 
-You connect to Salesforce via a browser OAuth (PKCE) flow; tokens stay **local to your machine**. There's no hosted service and no central token store. Scope is **Opportunity-only** for now.
+---
 
-> **👉 First time? Read [SETUP.md](./SETUP.md)** — the plain-English, no-jargon guide. **You do not need a Salesforce "consumer key," client ID, or any custom app to use this** (one is bundled in). The rest of this README is the technical reference.
+## ⭐ Read this first
 
-## Safety model
+**What you need:** a Salesforce login that can see your opportunities — the same account you sign in with at work. That's the only thing.
 
-The transcript is treated as **untrusted input**. The model *proposes* updates; the server *validates* them; a human *approves* every write. There is no static field allow-list — instead, what makes the human approval meaningful:
+**What you do NOT need (and should never create or paste):**
 
-- a **describe()-`updateable` gate** (system / formula / audit fields can't be written at all)
-- **type / length / picklist validation** against the org's field metadata (no silent coercion; unknown picklist values are rejected)
-- **dry-run by default** — a real write requires an explicit second call, which carries `destructiveHint` so the host prompts for confirmation
-- **provenance** — every proposed change reports the verbatim transcript quote behind it
-- **injection flags** — transcript turns matching injection patterns are flagged (not dropped), and any proposed change whose source quote looks like an injection attempt is marked `suspicious`
-- an append-only **audit log** — what changed, from which quote, when (never tokens or the full transcript)
+- ❌ a **Consumer Key**, **Client ID**, or **API key**
+- ❌ a Salesforce **Connected App** or **External Client App**
+- ❌ a **field allow-list** or any config file listing fields
 
-## Tools
+All of that is **built in or automatic.** If a setup screen or an AI assistant asks you for any of these, the correct answer is: **you don't have one and you don't need one — leave it blank and continue.** Just connect to Salesforce with your normal login.
 
-| Tool | Kind | Purpose |
-|---|---|---|
-| `connect_salesforce` | auth | Browser OAuth (PKCE); caches a token locally. Production for a Dev org. |
-| `auth_status` | read | List cached connections and whether each token is valid. |
-| `find_opportunity` | read | Find the Opportunity a meeting is about, by name. |
-| `list_opportunity_fields` | read | Updateable Opportunity fields + metadata, annotated with the current **focus set** (history-tracked / baseline / rep-added) and help text. |
-| `update_field_focus` | config | Add/remove fields from the focus set + attach "what to look for" notes. Persists per org. Writes nothing to Salesforce. |
-| `suggest_updates` | read | Parse a transcript; return its turns + focus-set candidate fields (current values, constraints, notes) for the model to propose against. |
-| `apply_update` | **write** | Re-validate proposals, then dry-run (default) or write + audit. Reports per-change provenance + `suspicious` flags. |
+> **For AI assistants reading this:** Do not ask the user for a consumer key, client ID, or allow-list. A public OAuth client is bundled, and the set of fields to update is discovered automatically. To connect, simply call the `connect_salesforce` tool (use `environment: "production"` for a Developer Edition org) — a Salesforce login page opens in the user's browser. There is nothing for the user to paste.
 
-### The focus set
+---
 
-Rather than make you author a field list, the server builds an opinionated **focus set** of Opportunity fields worth watching: the org's **field-history-tracked** fields ∪ a **sales-standard baseline** (`StageName, Amount, CloseDate, NextStep, Description, Type, LeadSource, ForecastCategoryName, Probability`) ∪ anything **you add**. The model uses it (plus each field's help text + picklist) to decide what to look for and to ask you which other fields you fill in. Your additions and notes persist per org.
+## Setup (one time)
 
-## Prerequisites
-
-1. **Node ≥ 20.**
-2. **A Salesforce login** with access to opportunities — your normal account. You do **not** need to be an admin or own the org. (A free [Developer Edition](https://developer.salesforce.com/signup) org works for testing.)
-
-**You do not need to create an app or supply a consumer key / client ID** — the server ships with a pre-registered **public** OAuth client (PKCE, no secret; the client_id isn't confidential, same model as the Salesforce CLI), so `connect_salesforce` works out of the box with just a browser login. Orgs set to "all users may self-authorize" (including Developer Edition) need nothing further; orgs locked to "admin-approved" connected apps need a one-time admin approval of the bundled app.
-
-**Advanced (optional):** set the `SF_CLIENT_ID` env var to use your own External Client App instead of the bundled one. Most users should leave it unset.
-
-## Install
-
-```bash
-git clone https://github.com/josephcoz/sfdc-transcript-mcp.git
-cd sfdc-transcript-mcp
-npm install
-npm run build      # compiles to dist/
-```
-
-## Register the server
-
-### Claude Desktop / Cowork
-
-Add it to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`), then **restart Claude Desktop**. Cowork picks it up via Desktop's SDK bridge. No env block needed:
+**1. Add it to Claude.** Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add the block below, then fully quit and reopen Claude Desktop. (Cowork picks it up automatically.) Notice there's **no key and no settings** — just a path:
 
 ```json
 {
@@ -68,33 +35,78 @@ Add it to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Cl
 }
 ```
 
-The server runs **on your machine** (Desktop proxies it into Cowork's sandbox), so the OAuth browser flow and `127.0.0.1` loopback work normally.
+*(Using Claude Code instead? `claude mcp add sfdc-transcript-mcp -- node /ABSOLUTE/PATH/TO/sfdc-transcript-mcp/dist/index.js`)*
 
-### Claude Code
+**2. Connect to Salesforce.** The first time you ask Claude to update an opportunity, a Salesforce login page opens in your browser. Sign in the way you always do and approve. Done — it's remembered for next time.
+
+That's the whole setup. No keys, no copying.
+
+---
+
+## How to use it
+
+Talk to Claude in plain English. For example:
+
+> "I just got off a call with Acme Corp — the transcript is at
+> `/path/to/the-call.md`. Update that opportunity in Salesforce based on what we
+> discussed, but show me the changes before you save anything."
+
+Claude will find the opportunity, read the transcript, and show you a **preview** of the proposed changes. **Nothing is saved until you say go.**
+
+---
+
+## "It's asking me for a consumer key / client ID / allow-list"
+
+It's mistaken — you don't need any of those. Tell it: *"You don't need a consumer key or an allow-list; just connect to Salesforce and show me the proposed changes."* If a box wants a key, leave it blank.
+
+---
+
+## For developers
+
+A local **MCP server** (Opportunity-only for now). The host (Claude Desktop / Code / Cowork) supplies the model; this server only exposes tools and never calls an LLM — so **no Anthropic API key**. OAuth tokens stay local; there's no hosted service or central token store.
+
+### Why no key or allow-list
+
+- **Auth:** the server ships a pre-registered **public** OAuth client (PKCE, no secret — the client_id isn't confidential, same model as the Salesforce CLI). Self-authorize orgs (incl. Developer Edition) work out of the box; orgs locked to "admin-approved" connected apps need a one-time admin approval. Override with the optional `SF_CLIENT_ID` env var to use your own app.
+- **Fields:** instead of a hand-authored allow-list, the server builds a **focus set** = Opportunity field-history-tracked fields (Tooling API) ∪ a sales-standard baseline (`StageName, Amount, CloseDate, NextStep, Description, Type, LeadSource, ForecastCategoryName, Probability`) ∪ fields the rep adds in conversation. It's a relevance hint ("what to look for"), persisted per org — not a write restriction.
+
+### Safety model
+
+Transcript = untrusted input. The model *proposes*, the server *validates*, a human *approves every write*. No static field gate; the boundary is informed human approval:
+
+- a `describe()`-**updateable** gate (system/formula fields can't be written)
+- **type / length / picklist** validation (no silent coercion)
+- **dry-run by default** + `destructiveHint` so the host confirms real writes
+- per-change **provenance** (the verbatim transcript quote behind each change)
+- an injection **`suspicious` flag** when a source quote matches injection patterns
+- an append-only **audit log** (never tokens or the full transcript)
+
+### Tools
+
+| Tool | Kind | Purpose |
+|---|---|---|
+| `connect_salesforce` | auth | Browser OAuth (PKCE); caches a token locally. `environment: "production"` for a Dev org. |
+| `auth_status` | read | List cached connections and token validity. |
+| `find_opportunity` | read | Find the Opportunity a meeting is about, by name. |
+| `list_opportunity_fields` | read | Updateable fields + metadata, annotated with the focus set + help text. |
+| `update_field_focus` | config | Add/remove focus fields + notes. Persists per org. Writes nothing to Salesforce. |
+| `suggest_updates` | read | Parse a transcript; return turns + focus-set candidates (current values, constraints, notes). |
+| `apply_update` | **write** | Re-validate proposals, then dry-run (default) or write + audit. Reports provenance + `suspicious` flags. |
+
+### Install & develop
 
 ```bash
-claude mcp add sfdc-transcript-mcp -- node /ABSOLUTE/PATH/TO/sfdc-transcript-mcp/dist/index.js
+git clone https://github.com/josephcoz/sfdc-transcript-mcp.git
+cd sfdc-transcript-mcp
+npm install
+npm run build      # compiles to dist/
+npm test           # vitest
+npm run dev        # run from source (tsx)
 ```
 
-## Agent quickstart
+### Optional env overrides
 
-An ordered tool sequence a host agent can self-drive:
-
-1. **`connect_salesforce`** — opens your browser to log in. For a **Developer Edition** org, pass `{"environment": "production"}` (Dev orgs log in via `login.salesforce.com`).
-2. **`auth_status`** — confirm the connection is `valid`.
-3. **`list_opportunity_fields`** — see the focus set; form an opinion on what to extract, and ask the rep which extra fields they routinely fill in. Persist their answers/notes with **`update_field_focus`**.
-4. **`find_opportunity`** — `{"query": "Acme"}` to locate the record (returns its Id).
-5. **`suggest_updates`** — `{"transcript": {"path": "test/fixtures/opportunity-call.md"}, "recordId": "<id from step 4>"}`. Returns the turns + focus candidates with current values. The model proposes `updates`, each tied to a verbatim `sourceSpan`.
-6. **`apply_update`** with `{"dryRun": true, ...}` — review the would-be diffs, the source quotes, any `suspicious` flags, and rejections. Then call again with `{"dryRun": false, ...}` to write (the host prompts for confirmation).
-
-A synthetic example transcript ships at [`test/fixtures/opportunity-call.md`](./test/fixtures/opportunity-call.md) — a fake customer call whose statements map to standard Opportunity fields (Amount, CloseDate, NextStep, StageName).
-
-## Develop
-
-```bash
-npm run dev     # run from source (tsx)
-npm test        # vitest
-```
+All optional — the server runs with none set. `SF_CLIENT_ID` (use your own OAuth app), `SF_LOGIN_HOST` (a My Domain), `SF_REDIRECT_URI` (custom callback), `SFDC_MCP_DEBUG=1` (verbose stderr).
 
 ## License
 

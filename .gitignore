@@ -10,8 +10,5 @@ dist/
 tokens/
 audit/
 
-# the real field allow-list is user-supplied; only the example is tracked
-config/field-allowlist.json
-
 # os
 .DS_Store
