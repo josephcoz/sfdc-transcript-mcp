@@ -2,6 +2,8 @@
 
 Turn a sales call transcript into Salesforce Opportunity updates — proposed by an AI, approved by you. It runs on your computer through Claude (Desktop / Cowork / Code).
 
+[![Download the .mcpb bundle](https://img.shields.io/badge/Download-.mcpb%20bundle-2563eb?style=for-the-badge)](https://github.com/josephcoz/sfdc-transcript-mcp/releases/latest/download/sfdc-transcript-mcp.mcpb)
+
 ---
 
 ## ⭐ Read this first
