@@ -35,6 +35,10 @@ export async function connectSalesforce(opts: ConnectOptions): Promise<StoredTok
     });
     const pkce = createPkce();
     const state = `${randomState()}.${loop.port}`;
+    // Arm the loopback's expected-state check BEFORE opening the browser. With an
+    // already-authenticated session, Salesforce can redirect back before open()
+    // even resolves, so the callback must not be able to arrive un-armed.
+    const codePromise = loop.waitForCode(state);
     const authUrl = buildAuthorizeUrl({
       loginHost: host,
       clientId: cid,
@@ -48,7 +52,7 @@ export async function connectSalesforce(opts: ConnectOptions): Promise<StoredTok
       loopbackPort: loop.port,
     });
     await open(authUrl);
-    const code = await loop.waitForCode(state);
+    const code = await codePromise;
     const token = await exchangeCode({
       loginHost: host,
       clientId: cid,
