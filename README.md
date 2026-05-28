@@ -2,7 +2,9 @@
 
 A local **MCP server** that turns a meeting transcript into **human-confirmed Salesforce Opportunity updates**. The host (Claude Desktop / Claude Code / Cowork) provides the model; this server exposes tools and never calls an LLM itself — so it needs **no Anthropic API key**.
 
-You connect **your own** Salesforce org via a browser OAuth (PKCE) flow; tokens stay **local to your machine**. There's no hosted service and no central token store. Scope is **Opportunity-only** for now.
+You connect to Salesforce via a browser OAuth (PKCE) flow; tokens stay **local to your machine**. There's no hosted service and no central token store. Scope is **Opportunity-only** for now.
+
+> **👉 First time? Read [SETUP.md](./SETUP.md)** — the plain-English, no-jargon guide. **You do not need a Salesforce "consumer key," client ID, or any custom app to use this** (one is bundled in). The rest of this README is the technical reference.
 
 ## Safety model
 
@@ -34,9 +36,11 @@ Rather than make you author a field list, the server builds an opinionated **foc
 ## Prerequisites
 
 1. **Node ≥ 20.**
-2. **A Salesforce org** you control (a free [Developer Edition](https://developer.salesforce.com/signup) org works).
+2. **A Salesforce login** with access to opportunities — your normal account. You do **not** need to be an admin or own the org. (A free [Developer Edition](https://developer.salesforce.com/signup) org works for testing.)
 
-That's it — **no app to create, no client key to copy.** The server ships with a pre-registered public OAuth client (PKCE, no secret — the client_id isn't confidential, same model as the Salesforce CLI). Orgs set to "all users may self-authorize" need nothing further; orgs locked to "admin-approved" connected apps need a one-time admin approval. (Advanced: set `SF_CLIENT_ID` to use your own External Client App.)
+**You do not need to create an app or supply a consumer key / client ID** — the server ships with a pre-registered **public** OAuth client (PKCE, no secret; the client_id isn't confidential, same model as the Salesforce CLI), so `connect_salesforce` works out of the box with just a browser login. Orgs set to "all users may self-authorize" (including Developer Edition) need nothing further; orgs locked to "admin-approved" connected apps need a one-time admin approval of the bundled app.
+
+**Advanced (optional):** set the `SF_CLIENT_ID` env var to use your own External Client App instead of the bundled one. Most users should leave it unset.
 
 ## Install
 
