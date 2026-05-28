@@ -29,5 +29,6 @@ export function allowlistPath(): string | undefined {
  * Must exactly match the app's registered callback URL.
  */
 export function redirectUri(): string {
-  return process.env.SF_REDIRECT_URI?.trim() || "https://josephcoz.com/sfdc-connect";
+  // Trailing slash is the canonical Astro/Cloudflare URL (avoids a 307 hop).
+  return process.env.SF_REDIRECT_URI?.trim() || "https://josephcoz.com/sfdc-connect/";
 }
