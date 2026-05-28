@@ -1,7 +1,7 @@
 import open from "open";
 import type { SfEnvironment } from "../types.js";
 import { logger } from "../logger.js";
-import { clientId, defaultLoginHost, callbackHost } from "../config.js";
+import { clientId, defaultLoginHost, redirectUri } from "../config.js";
 import { resolveLoginHost } from "./hosts.js";
 import { createPkce, randomState } from "./pkce.js";
 import { startLoopback } from "./loopback.js";
@@ -18,9 +18,14 @@ export interface ConnectOptions {
  * Run the full browser OAuth (Authorization Code + PKCE) flow and persist the
  * resulting tokens locally. Shared by the connect_salesforce MCP tool and the
  * `connect` CLI subcommand.
+ *
+ * The registered redirect_uri is a web relay page; it forwards the code to our
+ * loopback server. We encode the loopback port into `state` so the relay knows
+ * where to forward.
  */
 export async function connectSalesforce(opts: ConnectOptions): Promise<StoredToken> {
-  const loop = await startLoopback(callbackHost());
+  const redirect = redirectUri();
+  const loop = await startLoopback({ redirectBack: redirect });
   try {
     const cid = clientId();
     const host = resolveLoginHost({
@@ -29,24 +34,25 @@ export async function connectSalesforce(opts: ConnectOptions): Promise<StoredTok
       envDefault: defaultLoginHost(),
     });
     const pkce = createPkce();
-    const state = randomState();
+    const state = `${randomState()}.${loop.port}`;
     const authUrl = buildAuthorizeUrl({
       loginHost: host,
       clientId: cid,
-      redirectUri: loop.redirectUri,
+      redirectUri: redirect,
       challenge: pkce.challenge,
       state,
     });
     logger.info("opening browser for Salesforce authorization", {
       host,
-      redirectUri: loop.redirectUri,
+      redirectUri: redirect,
+      loopbackPort: loop.port,
     });
     await open(authUrl);
     const code = await loop.waitForCode(state);
     const token = await exchangeCode({
       loginHost: host,
       clientId: cid,
-      redirectUri: loop.redirectUri,
+      redirectUri: redirect,
       code,
       verifier: pkce.verifier,
     });

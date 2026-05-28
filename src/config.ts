@@ -23,10 +23,11 @@ export function allowlistPath(): string | undefined {
 }
 
 /**
- * Host used in the OAuth redirect URI. Salesforce rejects http and bare-localhost
- * callbacks, so we default to a loopback-resolving domain (localtest.me -> 127.0.0.1).
- * Must match a callback URL registered on the External Client App.
+ * The OAuth redirect URI registered on the app: a static web relay page that
+ * forwards the auth code to the local loopback server. Salesforce sees a real
+ * HTTPS callback (no browser cert warning); the relay hands off to 127.0.0.1.
+ * Must exactly match the app's registered callback URL.
  */
-export function callbackHost(): string {
-  return process.env.SF_CALLBACK_HOST?.trim() || "localtest.me";
+export function redirectUri(): string {
+  return process.env.SF_REDIRECT_URI?.trim() || "https://josephcoz.com/sfdc-connect";
 }
