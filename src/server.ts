@@ -1,16 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import open from "open";
 import { SObject } from "./types.js";
 import { ProposedUpdate } from "./extract/schema.js";
 import { textResult, jsonResult, errorResult } from "./util.js";
-import { logger } from "./logger.js";
-import { clientId, defaultLoginHost } from "./config.js";
-import { resolveLoginHost } from "./auth/hosts.js";
-import { createPkce, randomState } from "./auth/pkce.js";
-import { startLoopback } from "./auth/loopback.js";
-import { buildAuthorizeUrl, exchangeCode, fetchIdentity } from "./auth/oauth.js";
-import { saveToken, loadToken, listTokens, type StoredToken } from "./auth/token-store.js";
+import { connectSalesforce } from "./auth/connect.js";
+import { listTokens, loadToken, type StoredToken } from "./auth/token-store.js";
 
 const NOT_IMPLEMENTED = "Not implemented yet.";
 
@@ -46,61 +40,18 @@ export function buildServer(): McpServer {
       annotations: { title: "Connect Salesforce", readOnlyHint: false },
     },
     async ({ environment, loginHost, alias }) => {
-      const loop = await startLoopback();
       try {
-        const cid = clientId();
-        const host = resolveLoginHost({ environment, loginHost, envDefault: defaultLoginHost() });
-        const pkce = createPkce();
-        const state = randomState();
-        const authUrl = buildAuthorizeUrl({
-          loginHost: host,
-          clientId: cid,
-          redirectUri: loop.redirectUri,
-          challenge: pkce.challenge,
-          state,
-        });
-        logger.info("opening browser for Salesforce authorization", { host });
-        await open(authUrl);
-        const code = await loop.waitForCode(state);
-        const token = await exchangeCode({
-          loginHost: host,
-          clientId: cid,
-          redirectUri: loop.redirectUri,
-          code,
-          verifier: pkce.verifier,
-        });
-        if (!token.refresh_token) {
-          throw new Error(
-            "No refresh_token returned. Ensure the 'refresh_token' (offline access) scope is enabled on your External Client App.",
-          );
-        }
-        const id = await fetchIdentity(token.id, token.access_token);
-        const stored: StoredToken = {
-          alias: alias?.trim() || id.orgId,
-          orgId: id.orgId,
-          username: id.username,
-          instanceUrl: token.instance_url,
-          loginHost: host,
-          environment,
-          accessToken: token.access_token,
-          refreshToken: token.refresh_token,
-          scope: token.scope,
-          obtainedAt: new Date().toISOString(),
-        };
-        saveToken(stored);
-        logger.info("connected", { alias: stored.alias, org: id.orgId, env: environment });
+        const c = await connectSalesforce({ environment, loginHost, alias });
         return jsonResult({
           connected: true,
-          alias: stored.alias,
-          orgId: id.orgId,
-          username: id.username,
-          instanceUrl: token.instance_url,
-          environment,
+          alias: c.alias,
+          orgId: c.orgId,
+          username: c.username,
+          instanceUrl: c.instanceUrl,
+          environment: c.environment,
         });
       } catch (err) {
         return errorResult(`connect_salesforce failed: ${(err as Error).message}`);
-      } finally {
-        loop.close();
       }
     },
   );

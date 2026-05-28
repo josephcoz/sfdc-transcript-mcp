@@ -21,3 +21,12 @@ export function defaultLoginHost(): string | undefined {
 export function allowlistPath(): string | undefined {
   return process.env.SF_ALLOWLIST_PATH?.trim() || undefined;
 }
+
+/**
+ * Host used in the OAuth redirect URI. Salesforce rejects http and bare-localhost
+ * callbacks, so we default to a loopback-resolving domain (localtest.me -> 127.0.0.1).
+ * Must match a callback URL registered on the External Client App.
+ */
+export function callbackHost(): string {
+  return process.env.SF_CALLBACK_HOST?.trim() || "localtest.me";
+}
