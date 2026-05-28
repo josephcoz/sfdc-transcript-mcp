@@ -5,6 +5,10 @@ import { ProposedUpdate } from "./extract/schema.js";
 import { textResult, jsonResult, errorResult } from "./util.js";
 import { connectSalesforce } from "./auth/connect.js";
 import { listTokens, loadToken, type StoredToken } from "./auth/token-store.js";
+import { withConnection } from "./sf/client.js";
+import { describeFields } from "./sf/describe.js";
+import { findRecords } from "./sf/records.js";
+import { allowedFields } from "./allowlist.js";
 
 const NOT_IMPLEMENTED = "Not implemented yet.";
 
@@ -98,7 +102,16 @@ export function buildServer(): McpServer {
       },
       annotations: { title: "Find record", readOnlyHint: true },
     },
-    async () => textResult(NOT_IMPLEMENTED),
+    async ({ sobject, query, limit, alias }) => {
+      try {
+        return await withConnection(alias, async (conn, token) => {
+          const matches = await findRecords(conn, token.instanceUrl, sobject, query, limit);
+          return jsonResult({ matches });
+        });
+      } catch (err) {
+        return errorResult(`find_record failed: ${(err as Error).message}`);
+      }
+    },
   );
 
   server.registerTool(
@@ -110,7 +123,31 @@ export function buildServer(): McpServer {
       inputSchema: { sobject: SObject, alias: z.string().optional() },
       annotations: { title: "List writable fields", readOnlyHint: true },
     },
-    async () => textResult(NOT_IMPLEMENTED),
+    async ({ sobject, alias }) => {
+      try {
+        return await withConnection(alias, async (conn, token) => {
+          const all = await describeFields(conn, token.orgId, sobject);
+          const updateable = all.filter((f) => f.updateable);
+          const allowed = allowedFields(sobject);
+          const fields =
+            allowed === null ? updateable : updateable.filter((f) => allowed.includes(f.name));
+          return jsonResult({
+            sobject,
+            allowListConfigured: allowed !== null,
+            fields: fields.map((f) => ({
+              name: f.name,
+              label: f.label,
+              type: f.type,
+              length: f.length,
+              picklistValues: f.picklistValues,
+              restrictedPicklist: f.restrictedPicklist,
+            })),
+          });
+        });
+      } catch (err) {
+        return errorResult(`list_writable_fields failed: ${(err as Error).message}`);
+      }
+    },
   );
 
   server.registerTool(
