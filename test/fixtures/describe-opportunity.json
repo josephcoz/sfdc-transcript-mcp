@@ -1,0 +1,56 @@
+[
+  {
+    "name": "StageName",
+    "label": "Stage",
+    "type": "picklist",
+    "updateable": true,
+    "restrictedPicklist": true,
+    "picklistValues": [
+      "Qualification",
+      "Needs Analysis",
+      "Proposal/Price Quote",
+      "Negotiation/Review",
+      "Closed Won",
+      "Closed Lost"
+    ]
+  },
+  {
+    "name": "Amount",
+    "label": "Amount",
+    "type": "currency",
+    "updateable": true
+  },
+  {
+    "name": "CloseDate",
+    "label": "Close Date",
+    "type": "date",
+    "updateable": true
+  },
+  {
+    "name": "NextStep",
+    "label": "Next Step",
+    "type": "string",
+    "updateable": true,
+    "length": 255
+  },
+  {
+    "name": "Description",
+    "label": "Description",
+    "type": "textarea",
+    "updateable": true,
+    "length": 32000
+  },
+  {
+    "name": "CreatedDate",
+    "label": "Created Date",
+    "type": "datetime",
+    "updateable": false
+  },
+  {
+    "name": "OwnerId",
+    "label": "Owner ID",
+    "type": "reference",
+    "updateable": true,
+    "referenceTo": ["User"]
+  }
+]

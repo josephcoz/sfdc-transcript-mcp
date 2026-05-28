@@ -2,15 +2,18 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { SObject } from "./types.js";
 import { ProposedUpdate } from "./extract/schema.js";
-import { textResult, jsonResult, errorResult } from "./util.js";
+import { jsonResult, errorResult } from "./util.js";
 import { connectSalesforce } from "./auth/connect.js";
 import { listTokens, loadToken, type StoredToken } from "./auth/token-store.js";
 import { withConnection } from "./sf/client.js";
 import { describeFields } from "./sf/describe.js";
-import { findRecords } from "./sf/records.js";
+import { findRecords, retrieveFields } from "./sf/records.js";
+import { applyRecordUpdate } from "./sf/update.js";
 import { allowedFields } from "./allowlist.js";
-
-const NOT_IMPLEMENTED = "Not implemented yet.";
+import { parseTranscript } from "./transcript/parse.js";
+import { hardenTurns } from "./transcript/redact.js";
+import { validateUpdates } from "./extract/validate.js";
+import { writeAudit, type AuditEntry } from "./audit.js";
 
 /**
  * Build the MCP server and register all tools.
@@ -169,7 +172,46 @@ export function buildServer(): McpServer {
       },
       annotations: { title: "Suggest updates", readOnlyHint: true },
     },
-    async () => textResult(NOT_IMPLEMENTED),
+    async ({ transcript, sobject, recordId, alias }) => {
+      try {
+        const parsed = parseTranscript(transcript);
+        const turns = hardenTurns(parsed.turns);
+        return await withConnection(alias, async (conn, token) => {
+          const all = await describeFields(conn, token.orgId, sobject);
+          const updateable = all.filter((f) => f.updateable);
+          const allowed = allowedFields(sobject);
+          const candidateMeta =
+            allowed === null ? updateable : updateable.filter((f) => allowed.includes(f.name));
+          const current = await retrieveFields(
+            conn,
+            sobject,
+            recordId,
+            candidateMeta.map((f) => f.name),
+          );
+          return jsonResult({
+            recordId,
+            sobject,
+            allowListConfigured: allowed !== null,
+            transcript: {
+              title: parsed.frontmatter.title,
+              date: parsed.frontmatter.date,
+              turns,
+            },
+            candidateFields: candidateMeta.map((f) => ({
+              name: f.name,
+              label: f.label,
+              type: f.type,
+              length: f.length,
+              picklistValues: f.picklistValues,
+              restrictedPicklist: f.restrictedPicklist,
+              currentValue: current[f.name] ?? null,
+            })),
+          });
+        });
+      } catch (err) {
+        return errorResult(`suggest_updates failed: ${(err as Error).message}`);
+      }
+    },
   );
 
   server.registerTool(
@@ -195,7 +237,59 @@ export function buildServer(): McpServer {
       },
       annotations: { title: "Apply update", destructiveHint: true },
     },
-    async () => textResult(NOT_IMPLEMENTED),
+    async ({ recordId, sobject, updates, dryRun, transcriptRef, alias }) => {
+      try {
+        return await withConnection(alias, async (conn, token) => {
+          const fields = await describeFields(conn, token.orgId, sobject);
+          const allowed = allowedFields(sobject);
+
+          const knownNames = [...new Set(updates.map((u) => u.field))].filter((n) =>
+            fields.some((f) => f.name === n),
+          );
+          const current = await retrieveFields(conn, sobject, recordId, knownNames);
+
+          const { valid, rejected } = validateUpdates(updates, fields, allowed, current);
+          const spanByField = new Map(updates.map((u) => [u.field, u.sourceSpan]));
+
+          if (!dryRun && valid.length > 0) {
+            await applyRecordUpdate(
+              conn,
+              sobject,
+              recordId,
+              Object.fromEntries(valid.map((v) => [v.field, v.to])),
+            );
+          }
+
+          const auditEntries: AuditEntry[] = valid.map((v) => ({
+            orgId: token.orgId,
+            username: token.username,
+            sobject,
+            recordId,
+            field: v.field,
+            from: v.from,
+            to: v.to,
+            dryRun,
+            sourceSpan: spanByField.get(v.field),
+            transcriptRef,
+          }));
+          const auditId = writeAudit(auditEntries);
+
+          return jsonResult({
+            dryRun,
+            applied: valid.map((v) => ({
+              field: v.field,
+              from: v.from,
+              to: v.to,
+              ...(v.normalizedNote ? { note: v.normalizedNote } : {}),
+            })),
+            rejected,
+            auditId,
+          });
+        });
+      } catch (err) {
+        return errorResult(`apply_update failed: ${(err as Error).message}`);
+      }
+    },
   );
 
   return server;
