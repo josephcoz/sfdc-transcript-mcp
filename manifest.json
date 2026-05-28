@@ -1,0 +1,41 @@
+{
+  "manifest_version": "0.2",
+  "name": "sfdc-transcript-mcp",
+  "display_name": "Salesforce Transcript Updater",
+  "version": "0.1.0",
+  "description": "Turn a sales call transcript into human-approved Salesforce Opportunity updates.",
+  "long_description": "Reads a meeting transcript and proposes Salesforce Opportunity field updates for you to review and approve. Connects to your own org via a browser login (no consumer key or field allow-list to configure). The model proposes, the server validates, and nothing is written without your confirmation — every change is shown as a dry-run preview with the verbatim quote behind it.",
+  "author": {
+    "name": "Joe Cosby-Johnson"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/josephcoz/sfdc-transcript-mcp"
+  },
+  "homepage": "https://github.com/josephcoz/sfdc-transcript-mcp",
+  "license": "MIT",
+  "keywords": ["salesforce", "crm", "mcp", "sales", "transcript"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {}
+    }
+  },
+  "tools": [
+    { "name": "connect_salesforce", "description": "Log in to Salesforce in the browser (no key needed)." },
+    { "name": "auth_status", "description": "Show cached connections and token validity." },
+    { "name": "find_opportunity", "description": "Find the Opportunity a meeting is about, by name." },
+    { "name": "list_opportunity_fields", "description": "List updateable Opportunity fields with the focus set + help text." },
+    { "name": "update_field_focus", "description": "Add/remove focus fields and notes (persists per org; writes nothing to Salesforce)." },
+    { "name": "suggest_updates", "description": "Parse a transcript and return candidate field updates with current values." },
+    { "name": "apply_update", "description": "Validate proposals, then dry-run (default) or write with confirmation. Logs an audit entry." }
+  ],
+  "compatibility": {
+    "runtimes": {
+      "node": ">=20.0.0"
+    }
+  }
+}

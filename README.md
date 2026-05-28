@@ -22,7 +22,11 @@ All of that is **built in or automatic.** If a setup screen or an AI assistant a
 
 ## Setup (one time)
 
-**1. Add it to Claude.** Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add the block below, then fully quit and reopen Claude Desktop. (Cowork picks it up automatically.) Notice there's **no key and no settings** — just a path:
+**1. Install it.** Two ways:
+
+**A — One-click (easiest, recommended).** Download `sfdc-transcript-mcp.mcpb` from the [latest release](https://github.com/josephcoz/sfdc-transcript-mcp/releases), then double-click it (or in Claude Desktop: **Settings → Extensions → Install from file**). No key, no settings, no Terminal.
+
+**B — Manual (developers / Claude Code).** Clone, `npm install`, `npm run build`, then either add this to `~/Library/Application Support/Claude/claude_desktop_config.json` and restart Desktop:
 
 ```json
 {
@@ -35,7 +39,7 @@ All of that is **built in or automatic.** If a setup screen or an AI assistant a
 }
 ```
 
-*(Using Claude Code instead? `claude mcp add sfdc-transcript-mcp -- node /ABSOLUTE/PATH/TO/sfdc-transcript-mcp/dist/index.js`)*
+or, in Claude Code: `claude mcp add sfdc-transcript-mcp -- node /ABSOLUTE/PATH/TO/sfdc-transcript-mcp/dist/index.js`
 
 **2. Connect to Salesforce.** The first time you ask Claude to update an opportunity, a Salesforce login page opens in your browser. Sign in the way you always do and approve. Done — it's remembered for next time.
 
@@ -102,6 +106,14 @@ npm install
 npm run build      # compiles to dist/
 npm test           # vitest
 npm run dev        # run from source (tsx)
+```
+
+**Build the `.mcpb` bundle** (for the one-click install above): build `dist/`, then pack a copy that has production deps only:
+
+```bash
+npm run build
+STAGE=$(mktemp -d) && cp manifest.json package*.json README.md "$STAGE"/ && cp -R dist "$STAGE"/dist
+( cd "$STAGE" && npm ci --omit=dev && npx @anthropic-ai/mcpb pack . ) && cp "$STAGE"/*.mcpb sfdc-transcript-mcp.mcpb
 ```
 
 ### Optional env overrides
