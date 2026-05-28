@@ -28,6 +28,11 @@ export function hardenTurns(turns: Turn[]): Turn[] {
   return turns.map(hardenTurn);
 }
 
+/** True if text matches a known injection pattern. Used to flag suspect proposals. */
+export function containsInjectionPattern(text: string): boolean {
+  return INJECTION_PATTERNS.some((re) => re.test(text));
+}
+
 function hardenTurn(turn: Turn): Turn {
   const cleaned = stripControlChars(turn.text);
   const capped = cleaned.slice(0, MAX_TURN_CHARS);

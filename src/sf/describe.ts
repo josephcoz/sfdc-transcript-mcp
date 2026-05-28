@@ -9,6 +9,7 @@ export interface FieldMeta {
   picklistValues?: string[]; // active values only
   restrictedPicklist?: boolean;
   referenceTo?: string[];
+  inlineHelpText?: string; // the field's help text — context for what to extract
 }
 
 // Describe results are stable within a session; cache per org+sobject.
@@ -35,6 +36,7 @@ export async function describeFields(
       restrictedPicklist?: boolean;
       picklistValues?: Array<{ value: string; active: boolean }>;
       referenceTo?: string[];
+      inlineHelpText?: string | null;
     };
     const picks = (field.picklistValues ?? []).filter((p) => p.active).map((p) => p.value);
     return {
@@ -46,6 +48,7 @@ export async function describeFields(
       picklistValues: picks.length ? picks : undefined,
       restrictedPicklist: field.restrictedPicklist || undefined,
       referenceTo: field.referenceTo?.length ? field.referenceTo : undefined,
+      inlineHelpText: field.inlineHelpText || undefined,
     };
   });
 

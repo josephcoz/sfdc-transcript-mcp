@@ -22,43 +22,34 @@ export interface ValidationResult {
 /**
  * Re-validate model-proposed updates server-side, independent of what the model
  * or transcript claimed. Gates run in order; the first failure rejects the
- * update with a human-readable reason. This is the hard wall the whole safety
- * model rests on, so it must be enforced here regardless of upstream trust.
+ * update with a human-readable reason. There is intentionally NO allow-list
+ * gate — any updateable field may be proposed — because the safety boundary is
+ * informed human approval (dry-run + provenance + injection flags), not a static
+ * field list. These gates just ensure a write is even possible and well-formed.
  */
 export function validateUpdates(
   updates: ProposedUpdate[],
   fields: FieldMeta[],
-  allowed: string[] | null,
   current: Record<string, unknown>,
 ): ValidationResult {
   const byName = new Map(fields.map((f) => [f.name, f]));
   const result: ValidationResult = { valid: [], rejected: [] };
 
   for (const u of updates) {
-    // Gate 1: allow-list.
-    if (allowed === null) {
-      result.rejected.push({ field: u.field, reason: "no allow-list configured; writes are disabled" });
-      continue;
-    }
-    if (!allowed.includes(u.field)) {
-      result.rejected.push({ field: u.field, reason: `field "${u.field}" is not in the allow-list` });
-      continue;
-    }
-
-    // Gate 2: field exists on the sObject.
+    // Gate 1: field exists on the sObject.
     const meta = byName.get(u.field);
     if (!meta) {
       result.rejected.push({ field: u.field, reason: `unknown field "${u.field}" on this sObject` });
       continue;
     }
 
-    // Gate 3: updateable (rejects system/formula/audit fields regardless of allow-list).
+    // Gate 2: updateable (system / formula / audit fields cannot be written at all).
     if (!meta.updateable) {
       result.rejected.push({ field: u.field, reason: `field "${u.field}" is not updateable` });
       continue;
     }
 
-    // Gate 4: type / length / picklist.
+    // Gate 3: type / length / picklist.
     const coerced = coerceValue(meta, u.value);
     if ("error" in coerced) {
       result.rejected.push({ field: u.field, reason: coerced.error });

@@ -22,6 +22,7 @@ export interface AuditEntry {
   from: unknown;
   to: unknown;
   dryRun: boolean;
+  suspicious?: boolean;
   sourceSpan?: { speaker: string; quote: string };
   transcriptRef: { title: string; date: string; hash: string };
 }
