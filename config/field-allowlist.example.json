@@ -1,0 +1,6 @@
+{
+  "Account": ["Description", "Industry", "AnnualRevenue", "NumberOfEmployees"],
+  "Opportunity": ["StageName", "NextStep", "CloseDate", "Amount", "Description"],
+  "Contact": ["Title", "Department", "Description"],
+  "Lead": ["Status", "Industry", "Description"]
+}
